@@ -1,0 +1,35 @@
+stages:
+  - setup_and_run
+  - wait_and_restart
+
+setup_and_run:
+  stage: setup_and_run
+  image: python:3.9
+  script:
+    - echo "Setting up environment..."
+    - pip install telebot flask pymongo aiohttp python-telegram-bot
+    - chmod +x *
+    - echo "Running the compiled binary..."
+    - |
+      while true; do
+        python3 devil.py || echo "Application crashed. Restarting..."
+        sleep 5
+      done
+  timeout: 3h  
+  only:
+    - main
+  after_script:
+    - echo "Pipeline timed out. Triggering a new pipeline..."
+    - curl -X POST -F token=$CI_JOB_TOKEN -F ref=$CI_COMMIT_REF_NAME https://gitlab.com/api/v4/projects/$CI_PROJECT_ID/trigger/pipeline
+
+wait_and_restart:
+  stage: wait_and_restart
+  image: python:3.9
+  script:
+    - echo "Sleeping for 1 hour before restarting pipeline..."
+    - sleep 3600
+    - echo "Restarting the pipeline..."
+    - curl -X POST -F token=$CI_JOB_TOKEN -F ref=$CI_COMMIT_REF_NAME https://gitlab.com/api/v4/projects/$CI_PROJECT_ID/trigger/pipeline || exit 1
+  timeout: 1h 
+  only:
+    - main
